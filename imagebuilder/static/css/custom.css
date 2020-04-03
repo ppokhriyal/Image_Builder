@@ -1,0 +1,8 @@
+.bs-callout {
+    padding: 20px;
+    margin: 20px 0;
+    /*border: 1px solid DodgerBlue;*/
+    border-left: 5px solid DodgerBlue;
+    border-left-width: 5px solid DodgerBlue;
+    border-radius: 3px;
+}
