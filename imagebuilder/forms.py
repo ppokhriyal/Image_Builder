@@ -40,3 +40,9 @@ class RegistrationForm(FlaskForm):
 class CopyPublicKey(FlaskForm):
 	username = StringField('Username',validators=[DataRequired()])
 	submit = SubmitField('SSH-Copy-Id')
+
+#Add ThinClient
+class AddTCForm(FlaskForm):
+	tc_username = StringField('Username',validators=[DataRequired()])
+	remote_host_ip = StringField('Remote Host IP Address',validators=[DataRequired(),IPAddress(message="Please Give Valid IP-Address")])
+	submit = SubmitField('Register')

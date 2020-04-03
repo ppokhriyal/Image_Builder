@@ -1,24 +1,58 @@
 {% extends 'layout.html' %}
 {% block content %}
 	<h4 class="pt2">Register New ThinClient</h4>
-	<div class="border-top pt-2 mb-2"></div>
+	<div class="border-top pt-2 mb-1"></div>
 	<p>Master Public Key<br>
-	<small>Copy the below public key to the remote thinclient machine,which you want to register.<br><code>Example : Location will be <mark>/root/.ssh/authorized_keys</mark>,authorized_keys file contents the public key content.</code></small>
+	
 	<div class="alert alert-dark bs-callout" role="alert">
 		<pre>{{publickey_content}}</pre>
 	</div>
 	<p>SSH-Copy-Id Public Key to Remote ThinClient<br>
-	<small>Make sure <mark>sshd daemon</mark> is running on the remote machine.</small></p>
+	<small>Make sure <mark>sshd daemon</mark> is running on the remote machine.<br>Create .ssh directory in <mark>/home/user/.ssh</mark> and set owner to <mark>chown user:user .ssh</mark></small></p>
 	<form method="POST" action="">
 		{{form.hidden_tag()}}
 		
 		<div class="input-group mb-3">
 			{{form.username(class="form-control",placeholder="username@ip-address")}}
   			<div class="input-group-append">
-  				{{form.submit(class="btn btn-outline-secondary")}}
-    			
-  				
+  				{{form.submit(class="btn btn-outline-secondary")}}	
   			</div>
+		</div>
+	</form>
+	<p><kbd>Or</kbd></p>
+	<small>Copy the below public key to the remote thinclient machine, 	which you want to register.<br><code>Example : Location will be <mark>/root/.ssh/authorized_keys</mark> or <mark>/home/.ssh/authorized_keys</mark>,authorized_keys file contents the public key content.</code></small>
+	<form method='POST' action="" class="pt-3">
+		{{addtcform.hidden_tag()}}
+
+		<div class="form-group">
+			<label>Remote ThinClient Username</label>
+			{% if addtcform.tc_username.errors %}
+				{{ addtcform.tc_username(class="form-control is-invalid form-control-sm")}}
+				<div class="invalid-feedback">
+					{% for error in addtcform.tc_username.errors %}
+						<span>{{ error }}</span>
+					{% endfor %}
+				</div>
+			{% else %}	
+				{{ addtcform.tc_username(class="form-control form-control-sm")}}
+			{% endif %}
+		</div>
+		<div class="form-group">
+			<label>Remote ThinClient IP Address</label>
+			{% if addtcform.remote_host_ip.errors %}
+				{{ addtcform.remote_host_ip(class="form-control is-invalid form-control-sm")}}
+				<div class="invalid-feedback">
+					{% for error in addtcform.remote_host_ip.errors %}
+						<span>{{ error }}</span>
+					{% endfor %}
+				</div>
+			{% else %}
+				{{ addtcform.remote_host_ip(class="form-control form-control-sm")}}
+			{% endif %}	
+		</div>
+		<div class="form-group">
+			{{addtcform.submit(class="btn btn-sm btn-primary")}}
+			<a class="btn btn-warning btn-sm" href="{{url_for('register_tc')}}">Cancel</a>
 		</div>
 	</form>
 {% endblock content %}
