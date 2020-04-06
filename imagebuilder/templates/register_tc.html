@@ -4,5 +4,44 @@
 		<a href="{{url_for('add_new_tc')}}" class="btn btn-success btn-sm float-right">Add New ThinClient</a></h4>
 	</h4>
 	<div class="border-top pt-2 mb-2"></div>
-	{{regs_tc_count}}
+	{% if regs_tc_count != 0 %}
+		{%set tc_status = namespace(value=0) %}
+		{% for regs in regs_tcs.items %}
+			<div class="card mb-2">
+				<div class="card-body bg-light">
+				 	<div class="d-inline p-2 bg-primary text-white">IPAddress</div>
+				 	<div class="d-inline p-2 bg-dark text-white">{{regs.ipaddress}}</div>
+				 	<div class="d-inline p-2 bg-primary text-white">Hostname</div>
+				 	<div class="d-inline p-2 bg-dark text-white">{{regs.hostname}}</div>
+				 	<div class="d-inline p-2 ml-1 bg-primary text-white">Status</div>
+				 	{% if tc_ip_status[tc_status.value] == 'Running'%}
+				 		<div class="d-inline p-2 bg-dark text-white"><i class="fas fa-thumbs-up"></i> Running</div>
+				 	{%else%}
+				 		<div class="d-inline p-2 bg-dark text-white"><i class="fas fa-thumbs-down"></i> Down</div>
+				 	{%endif%}
+				 </div>
+				 {% if regs.username == current_user %}
+				 	<div class="card-footer">
+				 		<a class="btn-sm btn-danger float-right text-decoration-none " href="#" role="button">Remove</a>
+				 	</div>
+				 {% endif %}
+			</div>
+			{% set tc_status.value = tc_status.value + 1 %}
+		{% endfor %}
+		<div class="rounded-0 col-lg-13 mx-auto">
+    	{% for page_num in regs_tcs.iter_pages(left_edge=1,right_edge=1,left_current=1,right_current=2) %}
+      		{% if page_num %}
+        		{% if regs_tcs.page == page_num %}
+          			<a class="btn btn-secondary mb-4 mt-2" href="{{ url_for('register_tc',page=page_num)}}">{{ page_num }}</a>
+        		{% else %}
+          			<a class="btn btn-outline-info mb-4 mt-2" href="{{ url_for('register_tc',page=page_num)}}">{{ page_num }}</a>
+        		{% endif %}  
+      		{% else %}
+        			...
+      		{% endif %}
+    	{% endfor %}
+   	</div>	
+	{% else %}
+		<p>No Record for ThinClients</p>
+	{% endif %}
 {% endblock content %}

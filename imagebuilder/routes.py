@@ -28,8 +28,24 @@ def register_tc():
     page = request.args.get('page',1,type=int)
     regs_tc_count = db.session.query(Registered_TC).count()
     regs_tcs = Registered_TC.query.paginate(page=page,per_page=4)
+    #Check the status of Registered TC
+    tc_ip_status = []
+    for i in db.session.query(Registered_TC).all():
+        try:
+            client.connect(str(i),timeout=2)
+            stdin, stdout, stderr = client.exec_command("hostname")
+            if stdout.channel.recv_exit_status() != 0:
+                tc_ip_status.append('Down')
+                print(tc_ip_status)
+            else:
+                tc_ip_status.append('Running')
+                print(tc_ip_status)
+        except Exception as e:
+            tc_ip_status.append('Down')
+            print(e)
+            print(tc_ip_status)
 
-    return render_template('register_tc.html',title='Register ThinClient',regs_tc_count=regs_tc_count,regs_tcs=regs_tcs)
+    return render_template('register_tc.html',title='Register ThinClient',regs_tc_count=regs_tc_count,regs_tcs=regs_tcs,tc_ip_status=tc_ip_status)
 
 #Add New TC
 @app.route('/add_new_tc',methods=['POST','GET'])
@@ -94,6 +110,13 @@ def add_new_tc():
 
     return render_template('add_new_tc.html',title='Add New TC',publickey_content=publickey_content,form=form,addtcform=addtcform)
 
+
+#Add new Image
+@app.route('/add_build_image',methods=['GET','POST'])
+@login_required
+def build_image():
+    pass
+    return render_template('build_image.html',title='Build New Image')
 
 #Login Page
 @app.route('/login',methods=['GET','POST'])
