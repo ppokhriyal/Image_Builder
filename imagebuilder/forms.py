@@ -5,7 +5,7 @@ from flask_login import current_user
 from wtforms import StringField, PasswordField, SubmitField, BooleanField, TextAreaField, SelectField
 from wtforms.ext.sqlalchemy.fields import QuerySelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError, InputRequired,IPAddress
-from imagebuilder.models import User
+from imagebuilder.models import User,Registered_TC
 
 
 #Login Form
@@ -46,3 +46,13 @@ class AddTCForm(FlaskForm):
 	tc_username = StringField('Username',validators=[DataRequired()])
 	remote_host_ip = StringField('Remote Host IP Address',validators=[DataRequired(),IPAddress(message="Please Give Valid IP-Address")])
 	submit = SubmitField('Register')
+
+
+#Build New Image
+class NewImageForm(FlaskForm):
+	image_build_id = StringField('Image Build ID',render_kw={'readonly':True},validators=[DataRequired()])
+	new_image_name = StringField('New Image Name',validators=[DataRequired()])
+	image_description = TextAreaField('Description',validators=[DataRequired()])
+	remote_tc_ip = QuerySelectField(query_factory=lambda:Registered_TC.query.all())
+	url_gz_image = StringField('URL Gz Image',validators=[DataRequired()])
+	submit = SubmitField('Build')

@@ -1,12 +1,22 @@
 from flask import render_template, url_for, flash, redirect, request, abort, session
 from imagebuilder import app, db, bcrypt,login_manager
-from imagebuilder.forms import LoginForm,RegistrationForm,CopyPublicKey,AddTCForm
+from imagebuilder.forms import LoginForm,RegistrationForm,CopyPublicKey,AddTCForm,NewImageForm
 from flask_login import login_user, current_user, logout_user, login_required
 from imagebuilder.models import User,Registered_TC
 import subprocess
 import time
 import paramiko
-
+import random
+import os
+import os.path
+import shutil
+from os import path
+import pathlib
+from pathlib import Path
+import urllib3
+import wget
+import requests
+import mimetypes
 
 
 #Set Paramiko Environment
@@ -32,18 +42,14 @@ def register_tc():
     tc_ip_status = []
     for i in db.session.query(Registered_TC).all():
         try:
-            client.connect(str(i),timeout=2)
+            client.connect(str(i),username='root',timeout=2)
             stdin, stdout, stderr = client.exec_command("hostname")
             if stdout.channel.recv_exit_status() != 0:
                 tc_ip_status.append('Down')
-                print(tc_ip_status)
             else:
                 tc_ip_status.append('Running')
-                print(tc_ip_status)
         except Exception as e:
             tc_ip_status.append('Down')
-            print(e)
-            print(tc_ip_status)
 
     return render_template('register_tc.html',title='Register ThinClient',regs_tc_count=regs_tc_count,regs_tcs=regs_tcs,tc_ip_status=tc_ip_status)
 
@@ -110,13 +116,69 @@ def add_new_tc():
 
     return render_template('add_new_tc.html',title='Add New TC',publickey_content=publickey_content,form=form,addtcform=addtcform)
 
+#Global variable Functions for Image Build
+def image_build_var():
+
+    global img_build_id, img_build_path
+    img_build_id = random.randint(1111,9999)
+    img_build_path = '/var/www/html/Images/'
+
+    #Check if Image Build area is empty and finish.true is not available
+    if not len(os.listdir(img_build_path)) == 0:
+        #Remove all the Folders which don't have finish.true files
+        for f in os.listdir(img_build_path):
+            file = pathlib.Path(img_build_path+f+"/"+"finish.true")
+            if not file.exists():
+                shutil.rmtree(img_build_path+f)
+    #Make working area
+    os.makedirs(img_build_path+str(img_build_id))
+    os.makedirs(img_build_path+str(img_build_id)+'/gz')
+
 
 #Add new Image
 @app.route('/add_build_image',methods=['GET','POST'])
 @login_required
 def build_image():
-    pass
-    return render_template('build_image.html',title='Build New Image')
+    form = NewImageForm()
+    image_build_var()
+
+    if form.validate_on_submit():
+
+        #Check if Remote TC is alive
+        try:
+            client.connect(str(form.remote_tc_ip.data),timeout=3)
+        except Exception as e:
+            flash(f"No Valid Connection Found !",'danger')
+            return redirect(url_for('home'))
+
+        #Check for valid url for gz image    
+        try:
+            http = urllib3.PoolManager()
+            check_url = http.request('GET',form.url_gz_image.data)
+            if check_url.status == 200:
+                print('URL IS LIVE')
+                #Now Check the URL file is of gz extention and gz application
+                response = requests.get(form.url_gz_image.data)
+                content_type = response.headers['content-type']
+                extension = mimetypes.guess_extension(content_type)
+
+                if extension == '.gz':
+                    print('GZ EXTENTION IS OK')
+                    #Download the GZ file
+                    wget.download(url=str(form.url_gz_image.data),out=img_build_path+str(img_build_id)+'/gz/')
+                else:
+                    flash(f'Invalid URL : {form.url_gz_image.data}.Check for the gz file','danger')
+                    return redirect(url_for('home'))
+
+            else:
+                flash(f'Invalid URL : {form.url_gz_image.data}','danger')
+                return redirect(url_for('home'))
+        except Exception as e:
+
+            flash(f'Invalid URL : {form.url_gz_image.data}','danger')
+            return redirect(url_for('home'))
+
+    return render_template('build_image.html',title='Build New Image',form=form,img_build_id=img_build_id)
 
 #Login Page
 @app.route('/login',methods=['GET','POST'])
