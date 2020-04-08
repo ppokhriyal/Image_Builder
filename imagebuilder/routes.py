@@ -139,6 +139,7 @@ def image_build_var():
 async def get_size(url):
     response = requests.head(url)
     size = int(response.headers['Content-Length'])
+    print(size)
     return size
 
 #Download Range
@@ -204,31 +205,26 @@ def build_image():
             if check_url.status_code == 200:
                 print('URL IS LIVE')
                 #Now Check the URL file is of gz extention and gz application
-                response = requests.get(form.url_gz_image.data)
+                response = requests.head(form.url_gz_image.data)
                 content_type = response.headers['content-type']
-                extension = mimetypes.guess_extension(content_type)
 
-                if extension == '.gz':
-                    print('GZ EXTENTION IS OK')
-                    #Download the GZ file
-                    # DOWNLOAD_URL = str(form.url_gz_image.data)
-                    # GZ_PATH = img_build_path+str(img_build_id)+'/gz/'
+                #Download the GZ file
+                DOWNLOAD_URL = form.url_gz_image.data
+                GZ_PATH = img_build_path+str(img_build_id)+'/gz/'+os.path.basename(form.url_gz_image.data)
 
-                    # executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
-                    # loop = asyncio.get_event_loop()
-                    # try:
-                    #     loop.run_until_complete(download(executor, DOWNLOAD_URL, GZ))
-                    # finally:
-                    #     loop.close()
-                else:
-                    flash(f'Invalid URL : {form.url_gz_image.data}.Check for the gz file','danger')
-                    return redirect(url_for('home'))
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(download(executor, DOWNLOAD_URL, GZ_PATH))
+                finally:
+                    loop.close()
 
             else:
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
                 return redirect(url_for('home'))
         except Exception as e:
-
+            print(e)
             flash(f'Invalid URL : {form.url_gz_image.data}','danger')
             return redirect(url_for('home'))
 

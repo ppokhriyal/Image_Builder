@@ -7,8 +7,6 @@ import os
 URL = 'http://192.168.0.102/test/ITL-PXE-2.1.B.G6-2.1.05.gz'
 OUTPUT = '/opt/a.gz'
 
-print(URL)
-
 async def get_size(url):
     response = requests.head(url)
     size = int(response.headers['Content-Length'])
@@ -54,13 +52,10 @@ async def download(executor, url, output, chunk_size=1000000):
             os.remove(chunk_path)
 
 
-if __name__ == '__main__':
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
-    loop = asyncio.get_event_loop()
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+loop = asyncio.get_event_loop()
 
-    try:
-        loop.run_until_complete(
-            download(executor, URL, OUTPUT)
-        )
-    finally:
-        loop.close()
+try:
+	loop.run_until_complete(download(executor, URL, OUTPUT))
+finally:
+	loop.close()
