@@ -15,9 +15,10 @@ import pathlib
 from pathlib import Path
 import urllib3
 import wget
-import requests
 import mimetypes
-
+import asyncio
+import concurrent.futures
+import requests
 
 #Set Paramiko Environment
 global client
@@ -134,6 +135,50 @@ def image_build_var():
     os.makedirs(img_build_path+str(img_build_id))
     os.makedirs(img_build_path+str(img_build_id)+'/gz')
 
+#Download size
+async def get_size(url):
+    response = requests.head(url)
+    size = int(response.headers['Content-Length'])
+    return size
+
+#Download Range
+def download_range(url, start, end, output):
+    headers = {'Range': f'bytes={start}-{end}'}
+    response = requests.get(url, headers=headers)
+
+    with open(output, 'wb') as f:
+        for part in response.iter_content(1024):
+            f.write(part)
+
+async def download(executor, url, output, chunk_size=1000000):
+    loop = asyncio.get_event_loop()
+
+    file_size = await get_size(url)
+    chunks = range(0, file_size, chunk_size)
+
+    tasks = [
+        loop.run_in_executor(
+            executor,
+            download_range,
+            url,
+            start,
+            start + chunk_size - 1,
+            f'{output}.part{i}',
+        )
+        for i, start in enumerate(chunks)
+    ]
+
+    await asyncio.wait(tasks)
+
+    with open(output, 'wb') as o:
+        for i in range(len(chunks)):
+            chunk_path = f'{output}.part{i}'
+
+            with open(chunk_path, 'rb') as s:
+                o.write(s.read())
+
+            os.remove(chunk_path)
+
 
 #Add new Image
 @app.route('/add_build_image',methods=['GET','POST'])
@@ -153,9 +198,10 @@ def build_image():
 
         #Check for valid url for gz image    
         try:
-            http = urllib3.PoolManager()
-            check_url = http.request('GET',form.url_gz_image.data)
-            if check_url.status == 200:
+            read_url = form.url_gz_image.data
+            check_url = requests.head(read_url)
+
+            if check_url.status_code == 200:
                 print('URL IS LIVE')
                 #Now Check the URL file is of gz extention and gz application
                 response = requests.get(form.url_gz_image.data)
@@ -165,7 +211,15 @@ def build_image():
                 if extension == '.gz':
                     print('GZ EXTENTION IS OK')
                     #Download the GZ file
-                    wget.download(url=str(form.url_gz_image.data),out=img_build_path+str(img_build_id)+'/gz/')
+                    # DOWNLOAD_URL = str(form.url_gz_image.data)
+                    # GZ_PATH = img_build_path+str(img_build_id)+'/gz/'
+
+                    # executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+                    # loop = asyncio.get_event_loop()
+                    # try:
+                    #     loop.run_until_complete(download(executor, DOWNLOAD_URL, GZ))
+                    # finally:
+                    #     loop.close()
                 else:
                     flash(f'Invalid URL : {form.url_gz_image.data}.Check for the gz file','danger')
                     return redirect(url_for('home'))
