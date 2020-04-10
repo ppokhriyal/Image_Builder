@@ -139,7 +139,6 @@ def image_build_var():
 async def get_size(url):
     response = requests.head(url)
     size = int(response.headers['Content-Length'])
-    print(size)
     return size
 
 #Download Range
@@ -220,6 +219,14 @@ def build_image():
                 finally:
                     loop.close()
 
+                #Extract GZ file
+                gunzip_cmd = "gunzip "+GZ_PATH
+                proc = subprocess.Popen(gunzip_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                o = proc.communicate()
+                if proc.returncode != 0:
+                    print("Error While Extracting GZ image")
+                else:
+                    print("Successfly Extracted GZ image")
             else:
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
                 return redirect(url_for('home'))
