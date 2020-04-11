@@ -134,6 +134,11 @@ def image_build_var():
     #Make working area
     os.makedirs(img_build_path+str(img_build_id))
     os.makedirs(img_build_path+str(img_build_id)+'/gz')
+    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct')
+    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/boot/')
+    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/core/')
+    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/basic/')
+    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/apps/')
 
 #Download size
 async def get_size(url):
@@ -224,9 +229,66 @@ def build_image():
                 proc = subprocess.Popen(gunzip_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                 o = proc.communicate()
                 if proc.returncode != 0:
-                    print("Error While Extracting GZ image")
+                    flash(f"Error while Extracting GZ image",'danger')
+                    return redirect(url_for('home'))
                 else:
                     print("Successfly Extracted GZ image")
+                    print("Mounting GZ image")
+                    gz_mount_cmd0 = "losetup -f"
+                    proc = subprocess.Popen(gz_mount_cmd0,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                    e,o = proc.communicate()
+                    loopdevice = e.decode('utf-8').rstrip('\n')
+
+                    gz_mount_cmd1 = "losetup "+loopdevice+' '+img_build_path+str(img_build_id)+'/gz/'+os.path.basename(form.url_gz_image.data)[:-3]
+                    proc = subprocess.Popen(gz_mount_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                    o = proc.communicate()
+                    if proc.returncode !=0:
+                        flash(f'Error: {gz_mount_cmd1}','danger')
+                        return redirect(url_for('home'))
+                    else:
+                        print(f'Success : {gz_mount_cmd1}')
+                        gz_mount_cmd2 = "kpartx -av "+loopdevice
+                        proc = subprocess.Popen(gz_mount_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                        o = proc.communicate()
+                        if proc.returncode !=0:
+                            flash(f'Error : {gz_mount_cmd2}','danger')
+                            return redirect(url_for('home'))
+                        else:
+                            print(f'Success : {gz_mount_cmd2}')
+                            gz_mount_cmd3 = "vgchange -ay lvm-vxl"
+                            proc = subprocess.Popen(gz_mount_cmd3,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                            e,o = proc.communicate()
+                            print(f'Success : {gz_mount_cmd3}')
+                            gz_mount_cmd4 = "vgscan --mknodes"
+                            proc = subprocess.Popen(gz_mount_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                            o = proc.communicate()
+                            if proc.returncode !=0:
+                                flash(f'Error : {gz_mount_cmd4}','danger')
+                                return redirect(url_for('home'))
+                            else:
+                                print(f'Success : {gz_mount_cmd4}')
+                                gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 /mnt/loop/"
+                                proc = subprocess.Popen(gz_mount_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                o = proc.communicate()
+
+                                if proc.returncode !=0:
+                                    flash(f'Error : {gz_mount_cmd5}','danger')
+                                else:
+                                    print(f'Success : {gz_mount_cmd5}')
+
+                                    #Start Access the TC and Download the Contents
+                                    #First will check still the system is alive
+                                    try:
+                                        client.connect(str(form.remote_tc_ip.data),timeout=3)
+                                    except Exception as e:
+                                        flash(f"Connection Timeout,Please check the TC Network",'danger')
+                                        return redirect(url_for('home'))
+
+                                    #Start Copying Files in respective folders
+                                    
+
+
+
             else:
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
                 return redirect(url_for('home'))
