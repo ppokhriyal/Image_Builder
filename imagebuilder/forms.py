@@ -36,17 +36,17 @@ class RegistrationForm(FlaskForm):
 		if user:
 		   raise ValidationError('That email is taken. Please choose a diffrent one.')
 
-#Copy Public Key
-class CopyPublicKey(FlaskForm):
-	username = StringField('Username',validators=[DataRequired()])
-	submit = SubmitField('SSH-Copy-Id')
-
 #Add ThinClient
 class AddTCForm(FlaskForm):
 	tc_username = StringField('Username',validators=[DataRequired()])
-	remote_host_ip = StringField('Remote Host IP Address',validators=[DataRequired(),IPAddress(message="Please Give Valid IP-Address")])
+	remote_host_ip = StringField('Remote TC IP Address',validators=[DataRequired(),IPAddress(message="Please Give Valid IP-Address")])
 	submit = SubmitField('Register')
 
+	def validate_ipaddress(self,remote_host_ip):
+		ip = Registered_TC.query.filter_by(ipaddress=remote_host_ip.data).first()
+
+		if ip:
+			raise ValidationError('This IPAddress is already registered')
 
 #Build New Image
 class NewImageForm(FlaskForm):

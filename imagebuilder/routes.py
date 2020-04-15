@@ -1,6 +1,6 @@
 from flask import render_template, url_for, flash, redirect, request, abort, session
 from imagebuilder import app, db, bcrypt,login_manager
-from imagebuilder.forms import LoginForm,RegistrationForm,CopyPublicKey,AddTCForm,NewImageForm
+from imagebuilder.forms import LoginForm,RegistrationForm,AddTCForm,NewImageForm
 from flask_login import login_user, current_user, logout_user, login_required
 from imagebuilder.models import User,Registered_TC
 import subprocess
@@ -58,50 +58,23 @@ def register_tc():
 @app.route('/add_new_tc',methods=['POST','GET'])
 @login_required
 def add_new_tc():
-
+    
     #Show Public Key
     with open('/root/.ssh/id_rsa.pub',"r") as f:
         publickey_content = f.read()
-
-    form = CopyPublicKey()
-    addtcform = AddTCForm()
+    
+    form = AddTCForm()
 
     if form.validate_on_submit():
-        cmd = "sshpass -p 'root123' ssh-copy-id -i ~/.ssh/id_rsa.pub -o StrictHostKeyChecking=no "+form.username.data
-        proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        o,e = proc.communicate()
-        if proc.returncode != 0:
-            flash('Connection to ThinClient Timeout','danger')
-            return redirect('add_new_tc')
-        else:
-            #Updating Database
-            tc_ipaddress = form.username.data.split('@')[1]
-            tc_username = form.username.data.split('@')[0]
-            client.connect(tc_ipaddress,username=tc_username,timeout=3)
-            stdin, stdout, stderr = client.exec_command("hostname")
-            for line1 in stdout:
-                print(line1)
-            try:
-                tc1 = Registered_TC(username=tc_username,ipaddress=tc_ipaddress,hostname=line1,register_tc_host=current_user)
-                db.session.add(tc1)
-                db.session.commit()
-            except Exception as ee:
-                flash(f"ThinClient is already Registered !",'info')
-                return redirect(url_for('add_new_tc'))
-                    
-            flash('ThinClient Registered','success')
-            return redirect('register_tc')
-
-    if addtcform.validate_on_submit():
         try:
-            remote_tc_ip = addtcform.remote_host_ip.data
-            client.connect(remote_tc_ip,username=addtcform.tc_username.data,timeout=3)
+            remote_tc_ip = form.remote_host_ip.data
+            client.connect(remote_tc_ip,username='root',timeout=3)
             stdin, stdout, stderr = client.exec_command("hostname")
             
             for line2 in stdout:
                 print(line2)
             try:
-                tc2 = Registered_TC(username=addtcform.tc_username.data,ipaddress=remote_tc_ip,hostname=line2,register_tc_host=current_user)
+                tc2 = Registered_TC(ipaddress=remote_tc_ip,hostname=line2,register_tc_host=current_user)
                 db.session.add(tc2)   
                 db.session.commit()
             except Exception as ee:
@@ -115,7 +88,7 @@ def add_new_tc():
         flash('ThinClient Registered','success')   
         return redirect('register_tc') 
 
-    return render_template('add_new_tc.html',title='Add New TC',publickey_content=publickey_content,form=form,addtcform=addtcform)
+    return render_template('add_new_tc.html',title='Add New TC',publickey_content=publickey_content,form=form)
 
 #Global variable Functions for Image Build
 def image_build_var():
@@ -134,11 +107,8 @@ def image_build_var():
     #Make working area
     os.makedirs(img_build_path+str(img_build_id))
     os.makedirs(img_build_path+str(img_build_id)+'/gz')
-    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct')
-    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/boot/')
-    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/core/')
-    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/basic/')
-    os.makedirs(img_build_path+str(img_build_id)+'/tc_struct/apps/')
+    os.makedirs(img_build_path+str(img_build_id)+'/gz_mount')
+
 
 #Download size
 async def get_size(url):
@@ -263,11 +233,12 @@ def build_image():
                             proc = subprocess.Popen(gz_mount_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                             o = proc.communicate()
                             if proc.returncode !=0:
+
                                 flash(f'Error : {gz_mount_cmd4}','danger')
                                 return redirect(url_for('home'))
                             else:
                                 print(f'Success : {gz_mount_cmd4}')
-                                gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 /mnt/loop/"
+                                gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 "+img_build_path+str(img_build_id)+'/gz_mount/'
                                 proc = subprocess.Popen(gz_mount_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                                 o = proc.communicate()
 
@@ -276,20 +247,128 @@ def build_image():
                                 else:
                                     print(f'Success : {gz_mount_cmd5}')
 
-                                    #Start Access the TC and Download the Contents
-                                    #First will check still the system is alive
-                                    try:
-                                        client.connect(str(form.remote_tc_ip.data),timeout=3)
-                                    except Exception as e:
-                                        flash(f"Connection Timeout,Please check the TC Network",'danger')
-                                        return redirect(url_for('home'))
+                                    #Start Copying Files
+                                    #Create SoftLinks
+                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                    # stdin, stdout, stderr = client.exec_command("cd /root ; ln -s /sda1/boot boot; ln -s /sda1/data/core core; ln -s /sda1/data/basic basic; ln -s /sda1/data/apps apps")
+                                    # stdin, stdout, stderr = client.exec_command("cd /root ; python -m SimpleHTTPServer")
+                                    # #Boot
+                                    # #Remove Boot contents from GZ
+                                    # print("Info : Removeing Boot Contents")
+                                    # rm_boot_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/boot'
+                                    # proc = subprocess.Popen(rm_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # print(f'Success : Remove Boot Contents from GZ')
+                                    # #Wget Boot contents to GZ
+                                    # print("Info : Downloading Boot Contents")
+                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                    # wget_boot_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/boot/"
+                                    # proc = subprocess.Popen(wget_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # print(f'Success : Downloaded /sda1/boot contents')
+                                    # stdin, stdout, stderr = client.exec_command("killall python")
 
-                                    #Start Copying Files in respective folders
+                                    # #Core
+                                    # #Remove Core contents from GZ
+                                    # print("Info : Removeing Core contents")
+                                    # rm_core_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/core'
+                                    # proc = subprocess.Popen(rm_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # #Wget Core contents to GZ
+                                    # print("Info : Downloading Core Contents")
+                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                    # wget_core_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/core/"
+                                    # proc = subprocess.Popen(wget_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # print(f'Success : Downloaded /sda1/data/core contents')
+                                    # stdin, stdout, stderr = client.exec_command("killall python")
+
                                     
+                                    # #Basic
+                                    # #Remove Basic contents from GZ
+                                    # print("Info : Removeing Basic Contents")
+                                    # rm_basic_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/basic'
+                                    # proc = subprocess.Popen(rm_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # #Wget Basic contents to GZ
+                                    # print("Info : Downloading Basic Contents")
+                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                    # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/basic/ ; python -m SimpleHTTPServer")
+                                    # wget_basic_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/basic/"
+                                    # proc = subprocess.Popen(wget_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # print(f'Success : Downloaded /sda1/data/basic contents')
+                                    # stdin, stdout, stderr = client.exec_command("killall python")
+
+                                    # #Apps
+                                    # #Remove Apps contents from GZ
+                                    # print("Info : Removeing Apps Contents")
+                                    # rm_apps_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/apps'
+                                    # proc = subprocess.Popen(rm_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # #Wget Apps contents to GZ
+                                    # print("Info : Downloading Apps Contents")
+                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                    # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/apps/ ; python -m SimpleHTTPServer")
+                                    # wget_apps_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/apps"
+                                    # proc = subprocess.Popen(wget_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    # o,e = proc.communicate()
+                                    # print(e)
+                                    # print(f'Success : Downloaded /sda1/data/apps contents')
+                                    # stdin, stdout, stderr = client.exec_command("killall python")
+
+                                    #Chmod All the Folders
+                                    print("Info : Changing Permission")
+                                    perm_cmd1 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/boot"
+                                    perm_cmd2 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/data/*"
+                                    
+                                    proc = subprocess.Popen(perm_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    proc = subprocess.Popen(perm_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    #Create GZ File again
+                                    print("Info: Creating Final GZ File")
+                                    create_gz_cmd1 = "cd "+img_build_path+str(img_build_id)
+                                    proc = subprocess.Popen(create_gz_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    create_gz_cmd2 = "umount "+img_build_path+str(img_build_id)+"/gz_mount"
+                                    proc = subprocess.Popen(create_gz_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    create_gz_cmd3 = "vgchange -an lvm-vxl"
+                                    proc = subprocess.Popen(create_gz_cmd3,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    create_gz_cmd4 = "losetup -d "+loopdevice
+                                    proc = subprocess.Popen(create_gz_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    create_gz_cmd5 = "kpartx -dv "+loopdevice
+                                    proc = subprocess.Popen(create_gz_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    create_gz_cmd6 = "gzip "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)[:-3]
+                                    proc = subprocess.Popen(create_gz_cmd6,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+
+                                    create_gz_cmd7 = "mv "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)+" "+img_build_path+str(img_build_id)+"/gz/"+form.new_image_name.data+".gz"
+                                    proc = subprocess.Popen(create_gz_cmd7,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                    o,e = proc.communicate()
+                                    
+                                    print("Success : Final GZ Created")
 
 
-
-            else:
+            else:                   
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
                 return redirect(url_for('home'))
         except Exception as e:
