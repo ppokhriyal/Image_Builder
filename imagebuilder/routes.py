@@ -2,7 +2,7 @@ from flask import render_template, url_for, flash, redirect, request, abort, ses
 from imagebuilder import app, db, bcrypt,login_manager
 from imagebuilder.forms import LoginForm,RegistrationForm,AddTCForm,NewImageForm
 from flask_login import login_user, current_user, logout_user, login_required
-from imagebuilder.models import User,Registered_TC
+from imagebuilder.models import User,Registered_TC,New_Image_Build
 import subprocess
 import time
 import paramiko
@@ -29,7 +29,10 @@ client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy)
 #Home Page
 @app.route('/',methods=['GET','POST'])
 def home():
-    return render_template('home.html',title='Home')
+    img_build_count = len(db.session.query(New_Image_Build).all())
+    page = request.args.get('page',1,type=int)
+    img = New_Image_Build.query.order_by(New_Image_Build.date_posted.desc()).paginate(page=page,per_page=4)
+    return render_template('home.html',title='Home',img_build_count=img_build_count,img=img)
 
 
 #Register ThinClient
@@ -107,6 +110,7 @@ def image_build_var():
     #Make working area
     os.makedirs(img_build_path+str(img_build_id))
     os.makedirs(img_build_path+str(img_build_id)+'/gz')
+    os.makedirs(img_build_path+str(img_build_id)+'/alpine')
     os.makedirs(img_build_path+str(img_build_id)+'/gz_mount')
 
 
@@ -228,145 +232,157 @@ def build_image():
                             gz_mount_cmd3 = "vgchange -ay lvm-vxl"
                             proc = subprocess.Popen(gz_mount_cmd3,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                             e,o = proc.communicate()
+
                             print(f'Success : {gz_mount_cmd3}')
                             gz_mount_cmd4 = "vgscan --mknodes"
                             proc = subprocess.Popen(gz_mount_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                            o = proc.communicate()
-                            if proc.returncode !=0:
+                            e,o = proc.communicate()
 
-                                flash(f'Error : {gz_mount_cmd4}','danger')
+                            print(f'Success : {gz_mount_cmd4}')
+                            gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 "+img_build_path+str(img_build_id)+'/gz_mount/'
+                            proc = subprocess.Popen(gz_mount_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                            e,o = proc.communicate()
+                            if proc.returncode !=0:
+                                flash(f'Error : {gz_mount_cmd5}','danger')
                                 return redirect(url_for('home'))
                             else:
-                                print(f'Success : {gz_mount_cmd4}')
-                                gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 "+img_build_path+str(img_build_id)+'/gz_mount/'
-                                proc = subprocess.Popen(gz_mount_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                o = proc.communicate()
+                                print(f'Success : {gz_mount_cmd5}')
+                                #Start Copying Files
+                                #Create SoftLinks
+                                #client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                # stdin, stdout, stderr = client.exec_command("cd /root ; ln -s /sda1/boot boot; ln -s /sda1/data/core core; ln -s /sda1/data/basic basic; ln -s /sda1/data/apps apps")
+                                # stdin, stdout, stderr = client.exec_command("cd /root ; python -m SimpleHTTPServer")
+                                # #Boot
+                                # #Remove Boot contents from GZ
+                                # print("Info : Removeing Boot Contents")
+                                # rm_boot_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/boot'
+                                # proc = subprocess.Popen(rm_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # print(f'Success : Remove Boot Contents from GZ')
+                                # #Wget Boot contents to GZ
+                                # print("Info : Downloading Boot Contents")
+                                # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                # wget_boot_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/boot/"
+                                # proc = subprocess.Popen(wget_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # print(f'Success : Downloaded /sda1/boot contents')
+                                # stdin, stdout, stderr = client.exec_command("killall python")
 
-                                if proc.returncode !=0:
-                                    flash(f'Error : {gz_mount_cmd5}','danger')
-                                else:
-                                    print(f'Success : {gz_mount_cmd5}')
-
-                                    #Start Copying Files
-                                    #Create SoftLinks
-                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
-                                    # stdin, stdout, stderr = client.exec_command("cd /root ; ln -s /sda1/boot boot; ln -s /sda1/data/core core; ln -s /sda1/data/basic basic; ln -s /sda1/data/apps apps")
-                                    # stdin, stdout, stderr = client.exec_command("cd /root ; python -m SimpleHTTPServer")
-                                    # #Boot
-                                    # #Remove Boot contents from GZ
-                                    # print("Info : Removeing Boot Contents")
-                                    # rm_boot_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/boot'
-                                    # proc = subprocess.Popen(rm_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # print(f'Success : Remove Boot Contents from GZ')
-                                    # #Wget Boot contents to GZ
-                                    # print("Info : Downloading Boot Contents")
-                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
-                                    # wget_boot_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/boot/"
-                                    # proc = subprocess.Popen(wget_boot_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # print(f'Success : Downloaded /sda1/boot contents')
-                                    # stdin, stdout, stderr = client.exec_command("killall python")
-
-                                    # #Core
-                                    # #Remove Core contents from GZ
-                                    # print("Info : Removeing Core contents")
-                                    # rm_core_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/core'
-                                    # proc = subprocess.Popen(rm_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # #Wget Core contents to GZ
-                                    # print("Info : Downloading Core Contents")
-                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
-                                    # wget_core_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/core/"
-                                    # proc = subprocess.Popen(wget_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # print(f'Success : Downloaded /sda1/data/core contents')
-                                    # stdin, stdout, stderr = client.exec_command("killall python")
+                                # #Core
+                                # #Remove Core contents from GZ
+                                # print("Info : Removeing Core contents")
+                                # rm_core_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/core'
+                                # proc = subprocess.Popen(rm_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # #Wget Core contents to GZ
+                                # print("Info : Downloading Core Contents")
+                                # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                # wget_core_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/core/"
+                                # proc = subprocess.Popen(wget_core_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # print(f'Success : Downloaded /sda1/data/core contents')
+                                # stdin, stdout, stderr = client.exec_command("killall python")
 
                                     
-                                    # #Basic
-                                    # #Remove Basic contents from GZ
-                                    # print("Info : Removeing Basic Contents")
-                                    # rm_basic_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/basic'
-                                    # proc = subprocess.Popen(rm_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # #Wget Basic contents to GZ
-                                    # print("Info : Downloading Basic Contents")
-                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
-                                    # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/basic/ ; python -m SimpleHTTPServer")
-                                    # wget_basic_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/basic/"
-                                    # proc = subprocess.Popen(wget_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # print(f'Success : Downloaded /sda1/data/basic contents')
-                                    # stdin, stdout, stderr = client.exec_command("killall python")
+                                # #Basic
+                                # #Remove Basic contents from GZ
+                                # print("Info : Removeing Basic Contents")
+                                # rm_basic_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/basic'
+                                # proc = subprocess.Popen(rm_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # #Wget Basic contents to GZ
+                                # print("Info : Downloading Basic Contents")
+                                # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/basic/ ; python -m SimpleHTTPServer")
+                                # wget_basic_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/basic/"
+                                # proc = subprocess.Popen(wget_basic_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # print(f'Success : Downloaded /sda1/data/basic contents')
+                                # stdin, stdout, stderr = client.exec_command("killall python")
 
-                                    # #Apps
-                                    # #Remove Apps contents from GZ
-                                    # print("Info : Removeing Apps Contents")
-                                    # rm_apps_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/apps'
-                                    # proc = subprocess.Popen(rm_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # #Wget Apps contents to GZ
-                                    # print("Info : Downloading Apps Contents")
-                                    # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
-                                    # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/apps/ ; python -m SimpleHTTPServer")
-                                    # wget_apps_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/apps"
-                                    # proc = subprocess.Popen(wget_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    # o,e = proc.communicate()
-                                    # print(e)
-                                    # print(f'Success : Downloaded /sda1/data/apps contents')
-                                    # stdin, stdout, stderr = client.exec_command("killall python")
+                                # #Apps
+                                # #Remove Apps contents from GZ
+                                # print("Info : Removeing Apps Contents")
+                                # rm_apps_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/apps'
+                                # proc = subprocess.Popen(rm_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # #Wget Apps contents to GZ
+                                # print("Info : Downloading Apps Contents")
+                                # client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
+                                # #stdin, stdout, stderr = client.exec_command("cd /sda1/data/apps/ ; python -m SimpleHTTPServer")
+                                # wget_apps_cmd = "wget -P "+img_build_path+str(img_build_id)+"/gz_mount/data/ -r –level=0 -E –ignore-length -x -k -p -erobots=off -np -nH --reject='index.html*' -N http://"+str(form.remote_tc_ip.data)+":8000/apps"
+                                # proc = subprocess.Popen(wget_apps_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                # o,e = proc.communicate()
+                                # print(e)
+                                # print(f'Success : Downloaded /sda1/data/apps contents')
+                                # stdin, stdout, stderr = client.exec_command("killall python")
+                                
+                                #Chmod All the Folders in GZ
+                                perm_cmd1 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/boot"
+                                perm_cmd2 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/data/*"
+                                    
+                                #Create GZ File again
+                                create_gz_cmd1 = "cd "+img_build_path+str(img_build_id)
+                                create_gz_cmd2 = "umount "+img_build_path+str(img_build_id)+"/gz_mount"
+                                #Create Alpine CDF
+                                create_cdf_cmd1 = "partclone.vfat -c -s /dev/mapper/"+loopdevice.lstrip('/dev/')+"p1"+" -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part1.CDF"+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF1.log"
+                                create_cdf_cmd2 = "partclone.ext4 -c -s /dev/mapper/lvm-* -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part2.CDF "+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF2.log"                              
+                                create_cdf_cmd3 = "partclone.ext3 -c -s /dev/mapper/"+loopdevice.lstrip('/dev/')+"p3 -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part3.CDF "+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF3.log"
+                                #Create GZ File Continue
+                                create_gz_cmd3 = "vgchange -an lvm-vxl"
+                                create_gz_cmd4 = "losetup -d "+loopdevice                                
+                                create_gz_cmd5 = "kpartx -dv "+loopdevice
+                                create_gz_cmd6 = "gzip "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)[:-3]
+                                create_gz_cmd7 = "mv "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)+" "+img_build_path+str(img_build_id)+"/gz/"+form.new_image_name.data.replace(' ','_')+".gz"
+                                    
+                                cmd_list = [perm_cmd1,perm_cmd2,create_gz_cmd1,
+                                create_gz_cmd2,create_cdf_cmd1,create_cdf_cmd2,
+                                create_cdf_cmd3,create_gz_cmd3,create_gz_cmd4,
+                                create_gz_cmd5,create_gz_cmd6,create_gz_cmd7
+                                ]
 
-                                    #Chmod All the Folders
-                                    print("Info : Changing Permission")
-                                    perm_cmd1 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/boot"
-                                    perm_cmd2 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/data/*"
-                                    
-                                    proc = subprocess.Popen(perm_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                for cmdi in range(len(cmd_list)):
+                                    proc = subprocess.Popen(cmd_list[cmdi],shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                                     o,e = proc.communicate()
-                                    
-                                    proc = subprocess.Popen(perm_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    #Create GZ File again
-                                    print("Info: Creating Final GZ File")
-                                    create_gz_cmd1 = "cd "+img_build_path+str(img_build_id)
-                                    proc = subprocess.Popen(create_gz_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    create_gz_cmd2 = "umount "+img_build_path+str(img_build_id)+"/gz_mount"
-                                    proc = subprocess.Popen(create_gz_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    create_gz_cmd3 = "vgchange -an lvm-vxl"
-                                    proc = subprocess.Popen(create_gz_cmd3,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    create_gz_cmd4 = "losetup -d "+loopdevice
-                                    proc = subprocess.Popen(create_gz_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    create_gz_cmd5 = "kpartx -dv "+loopdevice
-                                    proc = subprocess.Popen(create_gz_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    create_gz_cmd6 = "gzip "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)[:-3]
-                                    proc = subprocess.Popen(create_gz_cmd6,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
+                                    print (f"Command Executed => {cmd_list[cmdi]}")
+                                    print(f"Exit Code => {proc.returncode}")
 
-                                    create_gz_cmd7 = "mv "+img_build_path+str(img_build_id)+"/gz/"+os.path.basename(form.url_gz_image.data)+" "+img_build_path+str(img_build_id)+"/gz/"+form.new_image_name.data+".gz"
-                                    proc = subprocess.Popen(create_gz_cmd7,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                                    o,e = proc.communicate()
-                                    
-                                    print("Success : Final GZ Created")
+                                #Writing MD5SUM
+                                md5sum_gz_cmd = "md5sum "+img_build_path+str(img_build_id)+"/gz/*.gz"
+                                proc = subprocess.Popen(md5sum_gz_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                o,e = proc.communicate()
 
+                                with open(img_build_path+str(img_build_id)+"/gz/MD5SUM","w") as f:
+                                    f.write(o.decode('utf-8').split(' ')[0])
+                                    f.write("\n")
+
+                                md5sum_cdf_cmd = "md5sum "+img_build_path+str(img_build_id)+"/alpine/*.CDF"
+                                proc = subprocess.Popen(md5sum_cdf_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                o,e = proc.communicate()
+
+                                for i in range(len(o.decode('utf-8').split('\n'))):
+                                    with open(img_build_path+str(img_build_id)+"/alpine/MD5SUM","a") as f:
+                                        print(o.decode('utf-8').split('\n')[i])
+                                        f.write(o.decode('utf-8').split('\n')[i])
+                                        f.write("\n")
+
+                                #Update DataBase
+                                print('Info : Updating DataBase')
+                                update_database = New_Image_Build(imggenid=img_build_id,new_img_name=form.new_image_name.data.replace(' ','_'),description=form.image_description.data,final_img_url="http://"+img_build_path+str(img_build_id),newimage_author=current_user)
+                                db.session.add(update_database)
+                                db.session.commit()
+                                print('Success: DataBase Updated')
+
+                                #Return to Home
+                                flash(f'Image Build Successfull','success')
+                                return redirect(url_for('home'))
 
             else:                   
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
@@ -377,6 +393,17 @@ def build_image():
             return redirect(url_for('home'))
 
     return render_template('build_image.html',title='Build New Image',form=form,img_build_id=img_build_id)
+
+
+#View Details
+@app.route('/view_img_details/<int:img_id>')
+def img_details(img_id):
+    img = New_Image_Build.query.get_or_404(img_id)
+    
+    with open('/var/www/html/Images/'+str(img.imggenid)+"/gz/MD5SUM","r") as f:
+        gz_md5sum = f.readline()
+
+    return render_template('view.html',title='View',img=img,gz_md5sum=gz_md5sum)
 
 #Login Page
 @app.route('/login',methods=['GET','POST'])
@@ -399,7 +426,6 @@ def login():
     return render_template('login.html',title='Login',form=form)
 
 
-#Register Page
 #Register Page
 @app.route('/register',methods=['GET','POST'])
 def register():

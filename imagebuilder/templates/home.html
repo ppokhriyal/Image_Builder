@@ -2,4 +2,36 @@
 {% block content %}
 	<h4 class="pt2">Images Build History</h4>
 	<div class="border-top pt-2 mb-2"></div>
+	{% if img_build_count == 0 %}
+		<p class="h4 text-info">Image Build Not Found !!</p>
+	{% else %}
+		{% for i in img.items %}
+			<div class="my-3 p-3 bg-light border rounded">
+    			<h6 class="border-bottom border-gray pb-2 mb-0">Image Name : {{i.new_img_name}}</h6>
+    			<div class="media text-muted pt-3">
+      					<rect width="100%" height="100%" fill="#007bff"/>
+      					<text fill="#007bff">Build Id : {{i.imggenid}}</text>
+      				<p class="media-body pb-3 mb-0 small lh-125 ">
+        				<strong class="" lass="d-block text-gray-dark">Build by {{i.newimage_author.username}} | Dated : {{ i.date_posted.strftime('%d-%m-%Y')}} | Time : {{i.date_posted.strftime('%H:%M %p')}}</strong>
+      				</p>
+      				<p class="media-body pb-3 mb-0 small lh-125">{{i.description | safe}}</p>
+    			</div>
+    			<div class="border-top pt-2 mb-2">
+    			<a class="badge badge-info pt-1 mb-4 float-right" href="{{url_for('img_details',img_id=i.id) }}" role="button">View Details</a></div>
+			</div>
+		{% endfor %}
+		<div class="rounded-0 col-lg-13 mx-auto">
+    		{% for page_num in img.iter_pages(left_edge=1,right_edge=1,left_current=1,right_current=2) %}
+      			{% if page_num %}
+        			{% if img.page == page_num %}
+          				<a class="btn btn-secondary mb-4 mt-2" href="{{ url_for('home',page=page_num)}}">{{ page_num }}</a>
+        			{% else %}
+          				<a class="btn btn-outline-info mb-4 mt-2" href="{{ url_for('home',page=page_num)}}">{{ page_num }}</a>
+        			{% endif %}  
+      			{% else %}
+        			...
+      			{% endif %}
+    		{% endfor %}
+   		</div>	
+	{% endif %}
 {% endblock content %}
