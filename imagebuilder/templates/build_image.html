@@ -15,14 +15,14 @@
 		<div class="form-group row">
     		<label class="col-sm-3 col-form-label">Image Name</label>
     		<div class="col-sm-9">
-    			{{form.new_image_name(class="form-control")}}
+    			{{form.new_image_name(class="form-control",id="img_name_input")}}
     		</div>
   		</div>
 
   		<div class="form-group row">
     		<label class="col-sm-3 col-form-label">Image Description</label>
     		<div class="col-sm-9">
-    			{{form.image_description(class="form-control")}}
+    			{{form.image_description(class="form-control",id="img_description_input")}}
     		</div>
   		</div>
 
@@ -42,9 +42,14 @@
   		<div class="border-top pt-2"></div>
   		<div class="form-group row">
     		<div class="col-sm-5">
-       			{{form.submit(class="btn btn-primary")}}
+       			{{form.submit(class="btn btn-primary" ,id="buildbutton",onclick="myFunction();")}}
        			<a class="btn btn-warning" href="{{url_for('home')}}" role="button">Cancel</a>
     		</div>
+        <script type="text/javascript">
+          function myFunction(){
+            alert("Button Pressed");
+          };
+        </script>
   		</div>	
 	</form>
 

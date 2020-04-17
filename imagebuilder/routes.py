@@ -400,10 +400,34 @@ def build_image():
 def img_details(img_id):
     img = New_Image_Build.query.get_or_404(img_id)
     
+    #Read Md5sum of GZ image
     with open('/var/www/html/Images/'+str(img.imggenid)+"/gz/MD5SUM","r") as f:
         gz_md5sum = f.readline()
 
-    return render_template('view.html',title='View',img=img,gz_md5sum=gz_md5sum)
+    #Read Md5sums of Alpine CDF Files
+    alpine_cdf_list = []
+    with open('/var/www/html/Images/'+str(img.imggenid)+"/alpine/MD5SUM","r") as f:
+        for i in f:
+            if i != '\n':
+                alpine_cdf_list.append(i)
+
+    return render_template('view.html',title='View',img=img,gz_md5sum=gz_md5sum,alpine_cdf_list=alpine_cdf_list)
+
+#Delete Image
+@app.route('/delete_image_data/<int:img_id>')
+@login_required
+def delete_img(img_id):
+    img = New_Image_Build.query.get_or_404(img_id)
+    if img.newimage_author != current_user:
+        abort(403)
+    db.session.delete(img)
+    db.session.commit()
+
+    cmd = "rm -rf  /var/www/html/Images/"+str(img.imggenid)
+    proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    o,e = proc.communicate()
+    flash('Your Image data has been deleted!','success')
+    return redirect(url_for('home'))
 
 #Login Page
 @app.route('/login',methods=['GET','POST'])

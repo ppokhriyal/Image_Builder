@@ -14,7 +14,17 @@
 		</div>
 		<div class="border-top pt-2 mb-2"></div>
 			<small> <i class="fas fa-cloud-download-alt"></i> Download all the image contents from <a href="{img.final_img_url}}">"Here"</a><br>
-				<i class="fas fa-check-circle"></i> Md5sum of {{img.new_img_name}}.gz is <mark>{{gz_md5sum}}</mark>
+				<i class="fas fa-check-circle"></i> Md5sum of {{img.new_img_name}}.gz is <mark>{{gz_md5sum}}</mark><br>
+				<i class="fas fa-check-circle"></i> Md5sums of Alpine CDF files are :<br>
+					<ul>
+						{% for l in alpine_cdf_list %}
+							<li>{{l.split(' ')[2].split('/')[-1]}}	<mark>{{l.split(' ')[0]}}</mark></li>
+						{% endfor %}
+					</ul>
 			</small>
+		<div class="border-top pt-2 mb-2">
+			{% if img.newimage_author == current_user %}
+				<a class="badge badge-danger float-right" href="{{url_for('delete_img',img_id=img.id)}}" role="button">Remove</a></div>
+			{% endif %}</div>
 	</div>
 {% endblock content %}
