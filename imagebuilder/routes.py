@@ -617,8 +617,13 @@ def build_image():
                                     f.write("\n")
                                 with open('/var/www/html/log.txt',"r") as f:
                                     read_log = f.read()
+
+                                log_cmd = "mv /var/www/html/log.txt "+img_build_path+str(img_build_id)+'/'
+                                proc = subprocess.Popen(log_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                o,e = proc.communicate()
+
                                 flash(f'Image Build Successfull','success')
-                                #return redirect(url_for('home'))
+                                return redirect(url_for('home'))
 
             else:
                 with open('/var/www/html/log.txt',"a") as f:
@@ -653,6 +658,10 @@ def img_details(img_id):
     with open('/var/www/html/Images/'+str(img.imggenid)+"/gz/MD5SUM","r") as f:
         gz_md5sum = f.readline()
 
+    #Read Image Build Logs
+    with open('/var/www/html/Images/'+str(img.imggenid)+'/log.txt',"r") as f :
+        view_log = f.read()
+
     #Read Md5sums of Alpine CDF Files
     alpine_cdf_list = []
     with open('/var/www/html/Images/'+str(img.imggenid)+"/alpine/MD5SUM","r") as f:
@@ -660,7 +669,7 @@ def img_details(img_id):
             if i != '\n':
                 alpine_cdf_list.append(i)
 
-    return render_template('view.html',title='View',img=img,gz_md5sum=gz_md5sum,alpine_cdf_list=alpine_cdf_list)
+    return render_template('view.html',title='View',img=img,gz_md5sum=gz_md5sum,alpine_cdf_list=alpine_cdf_list,view_log=view_log)
 
 #Delete Image
 @app.route('/delete_image_data/<int:img_id>')

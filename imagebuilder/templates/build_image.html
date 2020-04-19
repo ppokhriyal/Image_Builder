@@ -42,13 +42,16 @@
   		<div class="border-top pt-2"></div>
   		<div class="form-group row">
     		<div class="col-sm-5">
-       			{{form.submit(class="btn btn-sm btn-primary",id="buildbutton",onclick="myFunction();")}}
+       			{{form.submit(class="btn btn-sm btn-primary",id="buildbutton",onclick="myFunction();",**{'data-toggle':'collapse','data-target':'#demo'})}}
        			<a class="btn btn-sm btn-warning" href="{{url_for('cancel_build')}}" role="button">Cancel</a>
-            <a class="btn btn-secondary btn-sm" data-toggle="collapse" id="viewbtn" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">Build Log</a>
+            <a class="btn btn-secondary btn-sm" data-toggle="collapse" id="viewbtn" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">View Log</a>
     		</div>
   		</div>	
 	</form>
 
+  <div id="demo" class="progress collapse">
+    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100" style="width: 100%"></div>
+  </div>
   <div class="collapse" id="collapseExample">
     <div class="alert alert-secondary" role="alert">
       <pre class="text-monospace">{{read_log | safe}}</pre>
@@ -56,8 +59,8 @@
   </div>
 <script type="text/javascript">
   function myFunction(){
-    if(document.getElementById("img_name_input").value.length != 0 && document.getElementById("img_description_input").value.length !=0 && document.getElementById("gz_download_url").value.length !=0){
-
+    if(document.getElementById("img_name_input").value.length == 0 && document.getElementById("img_description_input").value.length ==0 && document.getElementById("gz_download_url").value.length ==0){
+      alert('Empty fields are not allowed') ? "" : location.reload();
     };
   };
 </script>

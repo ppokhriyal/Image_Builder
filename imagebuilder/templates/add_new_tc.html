@@ -5,7 +5,7 @@
 	<p>Master Public Key<br>
 	
 	<div class="alert alert-dark bs-callout" role="alert">
-		<pre>{{publickey_content}}</pre>
+		<pre>{{publickey_content | safe}}</pre>
 	</div>
 	<small>Make sure <mark>sshd daemon</mark> is running on the remote TC machine.<br>Copy the above public key to the remote thinclient machine, 	which you want to register.<br><code>Example : Location will be <mark>/root/.ssh/authorized_keys</mark>,authorized_keys file contents the public key content.</code></small>
 	<form method='POST' action="" class="pt-3">
