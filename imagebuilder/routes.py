@@ -19,6 +19,8 @@ import mimetypes
 import asyncio
 import concurrent.futures
 import requests
+import logging
+
 
 #Set Paramiko Environment
 global client
@@ -93,6 +95,7 @@ def add_new_tc():
 
     return render_template('add_new_tc.html',title='Add New TC',publickey_content=publickey_content,form=form)
 
+
 #Global variable Functions for Image Build
 def image_build_var():
 
@@ -106,7 +109,10 @@ def image_build_var():
         for f in os.listdir(img_build_path):
             file = pathlib.Path(img_build_path+f+"/"+"finish.true")
             if not file.exists():
-                shutil.rmtree(img_build_path+f)
+                cmd = "rm -Rf /var/www/html/Images/"+str(f)
+                proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                o,e = proc.communicate()
+                
     #Make working area
     os.makedirs(img_build_path+str(img_build_id))
     os.makedirs(img_build_path+str(img_build_id)+'/gz')
@@ -165,28 +171,76 @@ async def download(executor, url, output, chunk_size=1000000):
 def build_image():
     form = NewImageForm()
     image_build_var()
+    global read_log
+
+    #Start Logging
+    with open('/var/www/html/log.txt',"w") as f:
+        f.write("Building Image")
+        f.write("\n")
+        f.write("==============")
+        f.write("\n")
+
+    with open('/var/www/html/log.txt',"r") as f:
+        read_log = f.read()
 
     if form.validate_on_submit():
-
         #Check if Remote TC is alive
         try:
+            with open('/var/www/html/log.txt',"a") as f:
+              f.write("INFO:[ Checking ThinClient Connectivity - "+str(form.remote_tc_ip.data)+" ]")
+              f.write("\n")
+            with open('/var/www/html/log.txt',"r") as f:
+                read_log = f.read()
+
             client.connect(str(form.remote_tc_ip.data),timeout=3)
         except Exception as e:
+            with open('/var/www/html/log.txt',"a") as f:
+                f.write("ERROR:[ Connection Timeout - "+str(form.remote_tc_ip.data)+" ]")
+                f.write("\n")
+            with open('/var/www/html/log.txt',"r") as f:
+                 read_log = f.read()
+
             flash(f"No Valid Connection Found !",'danger')
-            return redirect(url_for('home'))
+            #return redirect(url_for('home'))
+
+        #ThinClient is Live
+        with open('/var/www/html/log.txt',"a") as f:
+                f.write("SUCCESS:[ Connection establish - "+str(form.remote_tc_ip.data)+" ]")
+                f.write("\n")
+        with open('/var/www/html/log.txt',"r") as f:
+               read_log = f.read()
 
         #Check for valid url for gz image    
         try:
+            with open('/var/www/html/log.txt',"a") as f:
+              f.write("INFO:[ Checking GZ Image URL status - "+form.url_gz_image.data+" ]")
+              f.write("\n")
+            with open('/var/www/html/log.txt',"r") as f:
+                read_log = f.read()
+
             read_url = form.url_gz_image.data
             check_url = requests.head(read_url)
 
             if check_url.status_code == 200:
+
+                with open('/var/www/html/log.txt',"a") as f:
+                    f.write("SUCCESS:[ "+form.url_gz_image.data+" ]")
+                    f.write("\n")
+                with open('/var/www/html/log.txt',"r") as f:
+                    read_log = f.read()
+
                 print('URL IS LIVE')
                 #Now Check the URL file is of gz extention and gz application
                 response = requests.head(form.url_gz_image.data)
                 content_type = response.headers['content-type']
 
                 #Download the GZ file
+                with open('/var/www/html/log.txt',"a") as f:
+                    f.write("INFO:[ Downloading GZ Image - "+form.url_gz_image.data+" ]")
+                    f.write("\n")
+                with open('/var/www/html/log.txt',"r") as f:
+                    read_log = f.read()
+
                 DOWNLOAD_URL = form.url_gz_image.data
                 GZ_PATH = img_build_path+str(img_build_id)+'/gz/'+os.path.basename(form.url_gz_image.data)
 
@@ -198,16 +252,49 @@ def build_image():
                 finally:
                     loop.close()
 
+                with open('/var/www/html/log.txt',"a") as f:
+                    f.write("SUCCESS:[ "+form.url_gz_image.data+" ]")
+                    f.write("\n")
+                with open('/var/www/html/log.txt',"r") as f:
+                    read_log = f.read()
+
                 #Extract GZ file
+                with open('/var/www/html/log.txt',"a") as f:
+                    f.write("INFO:[ Extracting GZ Image - "+os.path.basename(form.url_gz_image.data)+" ]")
+                    f.write("\n")
+                with open('/var/www/html/log.txt',"r") as f:
+                    read_log = f.read()
+
                 gunzip_cmd = "gunzip "+GZ_PATH
                 proc = subprocess.Popen(gunzip_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                 o = proc.communicate()
                 if proc.returncode != 0:
+                    with open('/var/www/html/log.txt',"a") as f:
+                        f.write("ERROR:[ Extracting GZ Image - "+os.path.basename(form.url_gz_image.data)+" ]")
+                        f.write("\n")
+                    with open('/var/www/html/log.txt',"r") as f:
+                        read_log = f.read()
+
                     flash(f"Error while Extracting GZ image",'danger')
-                    return redirect(url_for('home'))
+                    #return redirect(url_for('home'))
                 else:
+                    with open('/var/www/html/log.txt',"a") as f:
+                        f.write("SUCCESS:[ "+os.path.basename(form.url_gz_image.data)+" ]")
+                        f.write("\n")
+                    with open('/var/www/html/log.txt',"r") as f:
+                        read_log = f.read()
+
                     print("Successfly Extracted GZ image")
+
+                    #Mounting GZ Image
+                    with open('/var/www/html/log.txt',"a") as f:
+                        f.write("INFO:[ Mounting GZ Image - "+os.path.basename(form.url_gz_image.data)+" ]")
+                        f.write("\n")
+                    with open('/var/www/html/log.txt',"r") as f:
+                        read_log = f.read()
+                    
                     print("Mounting GZ image")
+
                     gz_mount_cmd0 = "losetup -f"
                     proc = subprocess.Popen(gz_mount_cmd0,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                     e,o = proc.communicate()
@@ -217,42 +304,103 @@ def build_image():
                     proc = subprocess.Popen(gz_mount_cmd1,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                     o = proc.communicate()
                     if proc.returncode !=0:
+                        with open('/var/www/html/log.txt',"a") as f:
+                            f.write("ERROR:[ "+gz_mount_cmd1+" ]")
+                            f.write("\n")
+                        with open('/var/www/html/log.txt',"r") as f:
+                            read_log = f.read()
+                    
                         flash(f'Error: {gz_mount_cmd1}','danger')
-                        return redirect(url_for('home'))
+                        #return redirect(url_for('home'))
                     else:
+                        with open('/var/www/html/log.txt',"a") as f:
+                            f.write("SUCCESS:[ "+gz_mount_cmd1+" ]")
+                            f.write("\n")
+                        with open('/var/www/html/log.txt',"r") as f:
+                            read_log = f.read()
                         print(f'Success : {gz_mount_cmd1}')
+
                         gz_mount_cmd2 = "kpartx -av "+loopdevice
                         proc = subprocess.Popen(gz_mount_cmd2,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                         o = proc.communicate()
                         if proc.returncode !=0:
+                            with open('/var/www/html/log.txt',"a") as f:
+                                f.write("ERROR:[ "+gz_mount_cmd2+" ]")
+                                f.write("\n")
+                            with open('/var/www/html/log.txt',"r") as f:
+                                read_log = f.read()
+                    
                             flash(f'Error : {gz_mount_cmd2}','danger')
-                            return redirect(url_for('home'))
+                            #return redirect(url_for('home'))
                         else:
+                            with open('/var/www/html/log.txt',"a") as f:
+                                f.write("SUCCESS:[ "+gz_mount_cmd2+" ]")
+                                f.write("\n")
+                            with open('/var/www/html/log.txt',"r") as f:
+                                read_log = f.read()
                             print(f'Success : {gz_mount_cmd2}')
+
                             gz_mount_cmd3 = "vgchange -ay lvm-vxl"
                             proc = subprocess.Popen(gz_mount_cmd3,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                             e,o = proc.communicate()
 
+                            with open('/var/www/html/log.txt',"a") as f:
+                                f.write("SUCCESS:[ "+gz_mount_cmd3+" ]")
+                                f.write("\n")
+                            with open('/var/www/html/log.txt',"r") as f:
+                                read_log = f.read()
                             print(f'Success : {gz_mount_cmd3}')
+
+
                             gz_mount_cmd4 = "vgscan --mknodes"
                             proc = subprocess.Popen(gz_mount_cmd4,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                             e,o = proc.communicate()
 
+                            with open('/var/www/html/log.txt',"a") as f:
+                                f.write("SUCCESS:[ "+gz_mount_cmd4+" ]")
+                                f.write("\n")
+                            with open('/var/www/html/log.txt',"r") as f:
+                                read_log = f.read()
                             print(f'Success : {gz_mount_cmd4}')
+
                             gz_mount_cmd5 = "mount /dev/lvm-vxl/sda2 "+img_build_path+str(img_build_id)+'/gz_mount/'
                             proc = subprocess.Popen(gz_mount_cmd5,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                             e,o = proc.communicate()
                             if proc.returncode !=0:
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("ERROR:[ "+gz_mount_cmd5+" ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 flash(f'Error : {gz_mount_cmd5}','danger')
-                                return redirect(url_for('home'))
+                                #return redirect(url_for('home'))
                             else:
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ "+gz_mount_cmd5+" ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
                                 print(f'Success : {gz_mount_cmd5}')
+
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Downloading the boot,core,basic and apps content from ThinClient ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 #Start Copying Files
                                 #Create SoftLinks
                                 #client.connect(str(form.remote_tc_ip.data),username='root',timeout=3)
                                 # stdin, stdout, stderr = client.exec_command("cd /root ; ln -s /sda1/boot boot; ln -s /sda1/data/core core; ln -s /sda1/data/basic basic; ln -s /sda1/data/apps apps")
                                 # stdin, stdout, stderr = client.exec_command("cd /root ; python -m SimpleHTTPServer")
+
                                 # #Boot
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INF:[ Downloading Boot Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
                                 # #Remove Boot contents from GZ
                                 # print("Info : Removeing Boot Contents")
                                 # rm_boot_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/boot'
@@ -270,7 +418,19 @@ def build_image():
                                 # print(f'Success : Downloaded /sda1/boot contents')
                                 # stdin, stdout, stderr = client.exec_command("killall python")
 
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ Downloaded Boot Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 # #Core
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Downloading Core Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 # #Remove Core contents from GZ
                                 # print("Info : Removeing Core contents")
                                 # rm_core_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/core'
@@ -287,8 +447,19 @@ def build_image():
                                 # print(f'Success : Downloaded /sda1/data/core contents')
                                 # stdin, stdout, stderr = client.exec_command("killall python")
 
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ Downloaded Core Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
                                     
                                 # #Basic
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Downloading Basic Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 # #Remove Basic contents from GZ
                                 # print("Info : Removeing Basic Contents")
                                 # rm_basic_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/basic'
@@ -305,8 +476,19 @@ def build_image():
                                 # print(e)
                                 # print(f'Success : Downloaded /sda1/data/basic contents')
                                 # stdin, stdout, stderr = client.exec_command("killall python")
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ Downloaded Basic Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
 
                                 # #Apps
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Downloading Apps Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 # #Remove Apps contents from GZ
                                 # print("Info : Removeing Apps Contents")
                                 # rm_apps_cmd = "rm -rf "+img_build_path+str(img_build_id)+'/gz_mount/data/apps'
@@ -324,6 +506,12 @@ def build_image():
                                 # print(f'Success : Downloaded /sda1/data/apps contents')
                                 # stdin, stdout, stderr = client.exec_command("killall python")
                                 
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ Downloaded Apps Contents ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 #Chmod All the Folders in GZ
                                 perm_cmd1 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/boot"
                                 perm_cmd2 = "chmod -R 755 "+img_build_path+str(img_build_id)+"/gz_mount/data/*"
@@ -331,10 +519,35 @@ def build_image():
                                 #Create GZ File again
                                 create_gz_cmd1 = "cd "+img_build_path+str(img_build_id)
                                 create_gz_cmd2 = "umount "+img_build_path+str(img_build_id)+"/gz_mount"
+
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Creating Alpine CDF Files ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
                                 #Create Alpine CDF
                                 create_cdf_cmd1 = "partclone.vfat -c -s /dev/mapper/"+loopdevice.lstrip('/dev/')+"p1"+" -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part1.CDF"+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF1.log"
                                 create_cdf_cmd2 = "partclone.ext4 -c -s /dev/mapper/lvm-* -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part2.CDF "+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF2.log"                              
                                 create_cdf_cmd3 = "partclone.ext3 -c -s /dev/mapper/"+loopdevice.lstrip('/dev/')+"p3 -o "+img_build_path+str(img_build_id)+"/alpine/"+form.new_image_name.data.replace(' ','_')+"_part3.CDF "+" "+"-L "+img_build_path+str(img_build_id)+"/alpine/CDF3.log"
+
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ "+create_cdf_cmd1+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_cdf_cmd2+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_cdf_cmd3+" ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+
+
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("INFO:[ Creating Final GZ Image ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()    
+                                    
                                 #Create GZ File Continue
                                 create_gz_cmd3 = "vgchange -an lvm-vxl"
                                 create_gz_cmd4 = "losetup -d "+loopdevice                                
@@ -354,6 +567,20 @@ def build_image():
                                     print (f"Command Executed => {cmd_list[cmdi]}")
                                     print(f"Exit Code => {proc.returncode}")
 
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ "+create_gz_cmd3+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_gz_cmd4+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_gz_cmd5+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_gz_cmd6+" ]")
+                                    f.write("\n")
+                                    f.write("SUCCESS:[ "+create_gz_cmd7+" ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
+                                        
                                 #Writing MD5SUM
                                 md5sum_gz_cmd = "md5sum "+img_build_path+str(img_build_id)+"/gz/*.gz"
                                 proc = subprocess.Popen(md5sum_gz_cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -373,26 +600,48 @@ def build_image():
                                         f.write(o.decode('utf-8').split('\n')[i])
                                         f.write("\n")
 
+
                                 #Update DataBase
                                 print('Info : Updating DataBase')
                                 update_database = New_Image_Build(imggenid=img_build_id,new_img_name=form.new_image_name.data.replace(' ','_'),description=form.image_description.data,final_img_url="http://"+img_build_path+str(img_build_id),newimage_author=current_user)
                                 db.session.add(update_database)
                                 db.session.commit()
                                 print('Success: DataBase Updated')
-
+                                
+                                #Finish
+                                Path(img_build_path+str(img_build_id)+"/"+"finish.true").touch()
+                                
                                 #Return to Home
+                                with open('/var/www/html/log.txt',"a") as f:
+                                    f.write("SUCCESS:[ Final Image ]")
+                                    f.write("\n")
+                                with open('/var/www/html/log.txt',"r") as f:
+                                    read_log = f.read()
                                 flash(f'Image Build Successfull','success')
-                                return redirect(url_for('home'))
+                                #return redirect(url_for('home'))
 
-            else:                   
+            else:
+                with open('/var/www/html/log.txt',"a") as f:
+                    f.write("ERROR:[ "+form.url_gz_image.data+" ]")
+                    f.write("\n")
+                with open('/var/www/html/log.txt',"r") as f:
+                    read_log = f.read()
+
                 flash(f'Invalid URL : {form.url_gz_image.data}','danger')
-                return redirect(url_for('home'))
+                #return redirect(url_for('home'))
         except Exception as e:
             print(e)
+            with open('/var/www/html/log.txt',"a") as f:
+                f.write("ERROR:[ "+form.url_gz_image.data+" ]")
+                f.write("\n")
+            with open('/var/www/html/log.txt',"r") as f:
+                read_log = f.read()
+                
             flash(f'Invalid URL : {form.url_gz_image.data}','danger')
-            return redirect(url_for('home'))
+            #return redirect(url_for('home'))
 
-    return render_template('build_image.html',title='Build New Image',form=form,img_build_id=img_build_id)
+    return render_template('build_image.html',title='Build New Image',form=form,img_build_id=img_build_id,read_log=read_log)
+    
 
 
 #View Details
@@ -428,6 +677,22 @@ def delete_img(img_id):
     o,e = proc.communicate()
     flash('Your Image data has been deleted!','success')
     return redirect(url_for('home'))
+
+#Cancel Build
+@app.route('/cancel_build')
+@login_required
+def cancel_build():
+
+    if not len(os.listdir('/var/www/html/Images/')) == 0:
+        for f in os.listdir('/var/www/html/Images/'):
+            file = pathlib.Path('/var/www/html/Images/'+f+'/finish.true')
+            if not file.exists():
+                cmd = "rm -Rf /var/www/html/Images/"+str(f)
+                proc = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                o,e = proc.communicate()
+
+                flash(f'Your Image Build is canceled','info')
+                return redirect(url_for('home'))
 
 #Login Page
 @app.route('/login',methods=['GET','POST'])

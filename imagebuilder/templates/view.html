@@ -13,7 +13,7 @@
 			<p class="media-body pb-3 mb-0 small lh-125">{{img.description | safe}}</p>
 		</div>
 		<div class="border-top pt-2 mb-2"></div>
-			<small> <i class="fas fa-cloud-download-alt"></i> Download all the image contents from <a href="{img.final_img_url}}">"Here"</a><br>
+			<small> <i class="fas fa-cloud-download-alt"></i> Download all the image contents from <a href="{{img.final_img_url}}">"Here"</a><br>
 				<i class="fas fa-check-circle"></i> Md5sum of {{img.new_img_name}}.gz is <mark>{{gz_md5sum}}</mark><br>
 				<i class="fas fa-check-circle"></i> Md5sums of Alpine CDF files are :<br>
 					<ul>

@@ -36,21 +36,29 @@
   		<div class="form-group row">
     		<label class="col-sm-3 col-form-label">URL Gz Image</label>
     		<div class="col-sm-9">
-    			{{form.url_gz_image(class="form-control",placeholder='http://path/for/gzimage')}}
+    			{{form.url_gz_image(class="form-control",id="gz_download_url",placeholder='http://path/for/gzimage')}}
     		</div>
   		</div>
   		<div class="border-top pt-2"></div>
   		<div class="form-group row">
     		<div class="col-sm-5">
-       			{{form.submit(class="btn btn-primary" ,id="buildbutton",onclick="myFunction();")}}
-       			<a class="btn btn-warning" href="{{url_for('home')}}" role="button">Cancel</a>
+       			{{form.submit(class="btn btn-sm btn-primary",id="buildbutton",onclick="myFunction();")}}
+       			<a class="btn btn-sm btn-warning" href="{{url_for('cancel_build')}}" role="button">Cancel</a>
+            <a class="btn btn-secondary btn-sm" data-toggle="collapse" id="viewbtn" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">Build Log</a>
     		</div>
-        <script type="text/javascript">
-          function myFunction(){
-            alert("Button Pressed");
-          };
-        </script>
   		</div>	
 	</form>
 
+  <div class="collapse" id="collapseExample">
+    <div class="alert alert-secondary" role="alert">
+      <pre class="text-monospace">{{read_log | safe}}</pre>
+    </div>
+  </div>
+<script type="text/javascript">
+  function myFunction(){
+    if(document.getElementById("img_name_input").value.length != 0 && document.getElementById("img_description_input").value.length !=0 && document.getElementById("gz_download_url").value.length !=0){
+
+    };
+  };
+</script>
 {% endblock content %}
